@@ -17,39 +17,53 @@ function isNumber(value) {
 function validarDigitoVerificador(value) {
   const cpf = value.toString().trim();
 
-  var add = 0;
-  var rev = 0;
-  var i = 0;
-
-  // Valida 1o digito.
-  add = 0;
-  for (i = 0; i < 9; i++) {
-    add += parseInt(cpf.charAt(i)) * (10 - i);
-  }
-  rev = 11 - (add % 11);
-  if (rev == 10 || rev == 11) {
-    rev = 0;
-  }
-  if (rev != parseInt(cpf.charAt(9))) {
+  // Verifica se o cpf tem 11 dígitos
+  if (cpf.length !== 11) {
     return false;
   }
-  // Valida 1o digito.
 
-  // Valida 2o digito.
-  add = 0;
-  for (i = 0; i < 10; i++) {
-    add += parseInt(cpf.charAt(i)) * (11 - i);
-  }
-  rev = 11 - (add % 11);
-  if (rev == 10 || rev == 11) {
-    rev = 0;
-  }
-  if (rev != parseInt(cpf.charAt(10))) {
+  // Verifica se o cpf não pertece a uma sequência de números iguais
+  if (cpf[0].repeat(11) === cpf) {
     return false;
   }
-  // Valida 2o digito.
 
-  return true;
+  let soma1 = 0;
+
+  // Soma os 9 primeiros dígitos, multiplicando-os por 1, 2, 3, ..., 9
+  for (let i = 0; i < 9; i++) {
+    soma1 += parseInt(cpf[i], 10) * (i + 1);
+  }
+
+  // Calcula o resto da divisão da soma por 11
+  let resto1 = soma1 % 11;
+
+  // Se o resto for 10, o dígito verificador será 0
+  if (resto1 === 10) {
+    resto1 = 0;
+  }
+
+  let soma2 = 0;
+
+  // Soma os 10 primeiros dígitos, multiplicando-os por 0, 1, 2, ..., 9
+  for (let i = 0; i < 10; i++) {
+    soma2 += parseInt(cpf[i], 10) * i;
+  }
+
+  // Calcula o resto da divisão da soma por 11
+  let resto2 = soma2 % 11;
+
+  // Se o resto for 10, o dígito verificador será 0
+  if (resto2 === 10) {
+    resto2 = 0;
+  }
+
+  // Verifica se os dígitos verificadores são iguais aos dígitos do cpf
+  // note o uso de == ao invés de ===, pois estamos comparando números com strings
+  if (resto1 == cpf[9] && resto2 == cpf[10]) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 function isCpf(value) {
@@ -119,102 +133,203 @@ const validarEntradaDeDados = (lancamento) => {
   return null;
 };
 
+/*
+  O Map é uma estrutura de dados que permite armazenar dados em pares chave-valor.
+  Nesse caso, a chave é o CPF e o valor é um objeto com as informações da conta,
+  as informações incluem a soma, a média, o maior e o menor lançamento.
+  Podemos considerar que os métodos utilizados no programa (get e set) são O(1).
+*/
+const contas = new Map();
+
+/*
+  Função que organiza as informações dos lançamentos em um Map.
+  A complexidade dessa função é O(n), onde n é o número de lançamentos.
+*/
+function organizarInformacoes(lancamentos) {
+  console.time("organizarInformações");
+
+  // para cada lançamento, execute a seguinte lógica
+  for (let lancamento of lancamentos) {
+    let cpf = lancamento.cpf;
+    let valor = lancamento.valor;
+
+    const conta = contas.get(cpf);
+
+    // se a conta não existir, cria uma nova conta.
+    if (conta === undefined) {
+      contas.set(cpf, {
+        // soma é o valor do lançamento
+        soma: valor,
+        // começamos com 1 lançamento
+        numeroLancamentos: 1,
+        // a média é o valor do lançamento, pois valor / 1 = valor
+        media: valor,
+        // o maior e o menor valor são o valor do lançamento, pois não temos outros valores.
+        maior: valor,
+        menor: valor,
+      });
+    }
+    // se a conta existir, atualiza as informações da conta.
+    else {
+      // soma o valor do lançamento ao saldo da conta
+      conta.soma += valor;
+
+      // incrementa o número de lançamentos
+      conta.numeroLancamentos++;
+
+      // calcula a média, considerando a nova soma e o novo número de lançamentos
+      conta.media = conta.soma / conta.numeroLancamentos;
+
+      // atualiza o maior valor lançado
+      conta.maior = valor > conta.maior ? valor : conta.maior;
+
+      // atualiza o menor valor lançado
+      conta.menor = valor < conta.menor ? valor : conta.menor;
+    }
+  }
+
+  console.timeEnd("organizarInformações");
+}
+
+/*
+  Função que recupera os saldos de cada conta.
+  A complexidade dessa função é O(k), onde k é o número de contas (cpfs).
+*/
 const recuperarSaldosPorConta = (lancamentos) => {
-  const saldos = new Map();
+  organizarInformacoes(lancamentos);
 
-  for (let i = 0; i < lancamentos.length; i++) {
-    const cpf = lancamentos[i].cpf;
-    const valor = lancamentos[i].valor;
+  console.time("recuperarSaldosPorConta");
 
-    const saldoAtual = saldos.get(cpf);
+  const saldos = [];
 
-    if (saldoAtual !== undefined) {
-      saldos.set(cpf, saldoAtual + valor);
-    } else {
-      saldos.set(cpf, valor);
+  // Esse for-of itera sobre cada uma das contas e recupera o cpf (key) e as informações da conta (value).
+  for (let [cpf, conta] of contas) {
+    saldos.push({
+      cpf,
+      valor: conta.soma,
+    });
+  }
+
+  console.timeEnd("recuperarSaldosPorConta");
+
+  return saldos;
+};
+
+/*
+  Função que recupera o maior e o menor saldo de uma conta específica.
+  A complexidade dessa função é O(1).
+*/
+const recuperarMaiorMenorLancamentos = (cpf, lancamentos) => {
+  console.time("recuperarMaiorMenorLancamentos");
+
+  const conta = contas.get(cpf);
+
+  if (conta === undefined) {
+    return [];
+  }
+
+  const resultado = [
+    { cpf, valor: conta.menor },
+    { cpf, valor: conta.maior },
+  ];
+
+  console.timeEnd("recuperarMaiorMenorLancamentos");
+
+  return resultado;
+};
+
+/*
+  Função que recupera os três maiores saldos.
+  A complexidade dessa função é O(k), onde k é o número de contas (cpfs).
+*/
+const recuperarMaioresSaldos = (lancamentos) => {
+  console.time("recuperarMaioresSaldos");
+
+  let primeiro;
+  let segundo;
+  let terceiro;
+
+  for (let [cpf, conta] of contas) {
+    // se o saldo da conta for maior que o saldo do primeiro, atualiza os três maiores.
+    if (primeiro === undefined || conta.soma > primeiro.valor) {
+      terceiro = segundo;
+      segundo = primeiro;
+      primeiro = { cpf, valor: conta.soma };
+    }
+    // se o saldo da conta for maior que o saldo do segundo, atualiza o segundo e o terceiro.
+    else if (segundo === undefined || conta.soma > segundo.valor) {
+      terceiro = segundo;
+      segundo = { cpf, valor: conta.soma };
+    }
+    // se o saldo da conta for maior que o saldo do terceiro, atualiza o terceiro.
+    else if (terceiro === undefined || conta.soma > terceiro.valor) {
+      terceiro = { cpf, valor: conta.soma };
     }
   }
 
   const resultado = [];
 
-  for (const [cpf, valor] of saldos) {
-    resultado.push({ cpf, valor });
+  if (primeiro !== undefined) {
+    resultado.push(primeiro);
   }
+
+  if (segundo !== undefined) {
+    resultado.push(segundo);
+  }
+
+  if (terceiro !== undefined) {
+    resultado.push(terceiro);
+  }
+
+  console.timeEnd("recuperarMaioresSaldos");
 
   return resultado;
 };
 
-const recuperarMaiorMenorLancamentos = (cpf, lancamentos) => {
-  const menorMaior = [];
-
-  for (let i = 0; i < lancamentos.length; i++) {
-    if (lancamentos[i].cpf !== cpf) {
-      continue;
-    }
-
-    if (menorMaior.length === 0) {
-      menorMaior.push(lancamentos[i]);
-      menorMaior.push(lancamentos[i]);
-      continue;
-    }
-
-    if (lancamentos[i].valor < menorMaior[0].valor) {
-      menorMaior[0] = lancamentos[i];
-    }
-
-    if (lancamentos[i].valor > menorMaior[1].valor) {
-      menorMaior[1] = lancamentos[i];
-    }
-  }
-
-  return menorMaior;
-};
-
-const recuperarMaioresSaldos = (lancamentos) => {
-  const tresCpfsComMaioresSaldos = [];
-
-  const saldos = recuperarSaldosPorConta(lancamentos).sort(
-    (a, b) => b.valor - a.valor
-  );
-
-  tresCpfsComMaioresSaldos.push(saldos[0]);
-  tresCpfsComMaioresSaldos.push(saldos[1]);
-  tresCpfsComMaioresSaldos.push(saldos[2]);
-
-  return tresCpfsComMaioresSaldos;
-};
-
+/*
+  Função que recupera as três maiores médias.
+  A complexidade dessa função é O(k), onde k é o número de contas (cpfs).
+*/
 const recuperarMaioresMedias = (lancamentos) => {
-  const tresCpfsComMaioresMedias = [];
+  console.time("recuperarMaioresMedias");
 
-  const medias = new Map();
+  let primeiro;
+  let segundo;
+  let terceiro;
 
-  for (let i = 0; i < lancamentos.length; i++) {
-    const cpf = lancamentos[i].cpf;
-    const valor = lancamentos[i].valor;
-
-    const obj = medias.get(cpf);
-
-    if (obj !== undefined) {
-      obj.soma += valor;
-      obj.quantidade++;
-      medias.set(cpf, obj);
-    } else {
-      medias.set(cpf, { soma: valor, quantidade: 1 });
+  for (let [cpf, conta] of contas) {
+    // se a média da conta for maior que a média do primeiro, atualiza os três maiores.
+    if (primeiro === undefined || conta.media > primeiro.valor) {
+      terceiro = segundo;
+      segundo = primeiro;
+      primeiro = { cpf, valor: conta.media };
+    }
+    // se a média da conta for maior que a média do segundo, atualiza o segundo e o terceiro.
+    else if (segundo === undefined || conta.media > segundo.valor) {
+      terceiro = segundo;
+      segundo = { cpf, valor: conta.media };
+    }
+    // se a média da conta for maior que a média do terceiro, atualiza o terceiro.
+    else if (terceiro === undefined || conta.media > terceiro.valor) {
+      terceiro = { cpf, valor: conta.media };
     }
   }
 
-  const mediasOrdenadas = [];
+  const resultado = [];
 
-  for (const [cpf, obj] of medias) {
-    mediasOrdenadas.push({ cpf, valor: obj.soma / obj.quantidade });
+  if (primeiro !== undefined) {
+    resultado.push(primeiro);
   }
 
-  mediasOrdenadas.sort((a, b) => b.valor - a.valor);
+  if (segundo !== undefined) {
+    resultado.push(segundo);
+  }
 
-  tresCpfsComMaioresMedias.push(mediasOrdenadas[0]);
-  tresCpfsComMaioresMedias.push(mediasOrdenadas[1]);
-  tresCpfsComMaioresMedias.push(mediasOrdenadas[2]);
+  if (terceiro !== undefined) {
+    resultado.push(terceiro);
+  }
 
-  return tresCpfsComMaioresMedias;
+  console.timeEnd("recuperarMaioresMedias");
+
+  return resultado;
 };
